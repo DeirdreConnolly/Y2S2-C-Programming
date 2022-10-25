@@ -1,0 +1,30 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+C:/Users/Deirdre/College/CIT/Year 2/Semester 2/C Programming/A02/Code/main.c
+time.h
+-
+mine_ship_game.h
+C:/Users/Deirdre/College/CIT/Year 2/Semester 2/C Programming/A02/Code/mine_ship_game.h
+string.h
+-
+
+C:/Users/Deirdre/College/CIT/Year 2/Semester 2/C Programming/A02/Code/mine_ship_game.c
+mine_ship_game.h
+C:/Users/Deirdre/College/CIT/Year 2/Semester 2/C Programming/A02/Code/mine_ship_game.h
+
+C:/Users/Deirdre/College/CIT/Year 2/Semester 2/C Programming/A02/Code/mine_ship_game.h
+time.h
+-
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+
