@@ -1,0 +1,188 @@
+#!/usr/bin/wish
+
+# Program: mrexec.tcl
+# Written by: Josep Sanz
+# Date: November of 2001
+
+# define and include the library
+source libmr.tcl
+
+# maintain R0 equal to zero
+proc clearR0 {} {
+  global REG
+  set REG(0) "0000000000000000"
+}
+
+# this procedure execute a instruction
+proc execute {cod} {
+  global REG MEM N Z PC
+  clearR0
+  set COD [string range $cod 0 1]
+  if {$COD == 00} {
+    set Rd [bin2dec [string range $cod 2 4]]
+    set Ri $REG([bin2dec [string range $cod 5 7]])
+    set mem [bin2dec [string range $cod 8 15]]
+    set REG($Rd) $MEM([expr $mem + $Ri])
+    set N [string index $REG($Rd) 0]
+    if {[bin2dec $REG($Rd)] == 0} {set Z 1} else {set Z 0}
+    clearR0
+  } elseif {$COD == 01} {
+    set Rf [bin2dec [string range $cod 2 4]]
+    set Ri $REG([bin2dec [string range $cod 5 7]])
+    set mem [bin2dec [string range $cod 8 15]]
+    clearR0
+    set MEM([expr $mem + $Ri]) $REG($Rf)
+  } elseif {$COD == 10} {
+    set COND [string range $cod 2 4]
+    set mem [format "%sh" [dec2hex [expr [bin2dec [string range $cod 8 15]] - 1] 2]]
+    switch $COND {
+      000 {set PC $mem}
+      001 {if {$Z == 1} {set PC $mem}}
+      010 {if {$N == 1} {set PC $mem}}
+      011 {if {$N == 1 || $Z == 1} {set PC $mem}}
+      101 {if {$Z == 0} {set PC $mem}}
+      110 {if {$N == 0} {set PC $mem}}
+      111 {if {$N == 0 && $Z == 0} {set PC $mem}}
+    }
+  } elseif {$COD == 11} {
+    set Rd [bin2dec [string range $cod 2 4]]
+    set Rf1 $REG([bin2dec [string range $cod 5 7]])
+    set Rf1d [ca22dec $Rf1]
+    set Rf2 $REG([bin2dec [string range $cod 8 10]])
+    set Rf2d [ca22dec $Rf2]
+    set i [ca22dec [string range $cod 8 12]]
+    set OP [string range $cod 13 15]
+    switch $OP {
+      000 {set REG($Rd) [dec2ca2 [expr $Rf1d + $i] 16]}
+      001 {set REG($Rd) [dec2ca2 [expr $Rf1d - $i] 16]}
+      100 {set REG($Rd) [dec2ca2 [expr $Rf1d + $Rf2d] 16]}
+      101 {set REG($Rd) [dec2ca2 [expr $Rf1d - $Rf2d] 16]}
+      110 {set REG($Rd) [asr16 $Rf1]}
+      111 {set REG($Rd) [and16 $Rf1 $Rf2]}
+    }
+    set N [string index $REG($Rd) 0]
+    if {[bin2dec $REG($Rd)] == 0} {set Z 1} else {set Z 0}
+    clearR0
+  }
+}
+
+proc load {} {
+  global MEM filename
+  reset
+  if {$filename != ""} {
+    set file [open $filename r]
+    while {[eof $file] == 0} { # load all instructions in memory
+      gets $file cod
+      if {$cod != "" && [string index $cod 0] != "#"} {
+        scan $cod "%s %s" pos cod
+        set pos [num2dec $pos]
+        set cod [num2bin $cod 16]
+        set MEM($pos) $cod
+      }
+    }
+    close $file
+  }
+  actualize
+}
+
+proc stepbystep {} {
+  global PC MEM
+  if {$PC == "X"} {return}
+  set pc [num2dec $PC]
+  if {$pc >= 256} {return}
+  if {$MEM($pc) == "XXXXXXXXXXXXXXXX"} {return}
+  execute $MEM($pc)
+  set PC [format "%sh" [dec2hex [expr [num2dec $PC] + 1] 2]]
+  actualize
+}
+
+proc selfile {} {
+  global filename
+  set types { {"Code files" {.cod} } }
+  set filename [tk_getOpenFile -parent . -title "Select de code file" -filetypes $types]
+  if {$filename != ""} {load}
+}
+
+proc setpc {} {
+  global PC
+  set pc [.menu2.pc get]
+  if {$pc != ""} {
+    set PC [format "%sh" [num2hex $pc 2]]
+    actualize
+  }
+}
+
+proc actualize {} {
+  global REG MEM PC
+  .reg.reg delete 0 end
+  for {set i 1} {$i < 8} {incr i 1} {
+    if {$REG($i) != "XXXXXXXXXXXXXXXX"} {
+      set regh [bin2hex $REG($i) 4]
+      set regd [bin2dec $REG($i)]
+    } else {
+      set regh XXXX
+      set regd X
+    }
+    .reg.reg insert end [format "R%1s  %16sb %4sh %5s" $i $REG($i) $regh $regd]
+  }
+  .mem.mem delete 0 end
+  set select ""
+  for {set i 0} {$i < 256} {incr i 1} { # write the log of memory
+    if {$MEM($i) != "XXXXXXXXXXXXXXXX"} {
+      set pos [format "%sh" [dec2hex $i 2]]
+      if {$PC == $pos} {set select [.mem.mem size]}
+      set memh [bin2hex $MEM($i) 4]
+      set memd [bin2dec $MEM($i)]
+      set asm [cod2asm $MEM($i)]
+      .mem.mem insert end [format "%3s %16sb %4sh %5s %s" $pos $MEM($i) $memh $memd $asm]
+    }
+  }
+  if {$select != ""} {
+    .mem.mem selection set $select
+    set select [expr $select - 12]
+    if {$select > 0} {.mem.mem yview $select}
+  }
+}
+
+proc reset {} {
+  global REG MEM N Z PC
+  for {set i 0} {$i < 8} {incr i 1} {set REG($i) XXXXXXXXXXXXXXXX}
+  for {set i 0} {$i < 256} {incr i 1} {set MEM($i) XXXXXXXXXXXXXXXX}
+  set N X
+  set Z X
+  set PC X
+}
+
+# this is the main code
+wm title . "RM Simulator"
+frame .menu
+label .menu.cfile -text "Code file:"
+entry .menu.file -width 38 -textvariable filename -font "Courier 12"
+button .menu.selfile -text "Select" -command selfile
+grid .menu.cfile .menu.file .menu.selfile
+grid .menu
+frame .menu2
+label .menu2.cpc -text "PC:"
+entry .menu2.pc -width 4 -textvariable PC -font "Courier 12"
+button .menu2.setpc -text "Set PC" -command setpc
+label .menu2.cn -text "N:"
+entry .menu2.n -width 2 -textvariable N -font "Courier 12"
+label .menu2.cz -text "Z:" 
+entry .menu2.z -width 2 -textvariable Z -font "Courier 12"
+button .menu2.execute -text "Execute" -command stepbystep
+button .menu2.reset -text "Reset" -command load
+button .menu2.quit -text "Quit" -command exit
+grid .menu2.execute .menu2.cpc .menu2.pc .menu2.setpc .menu2.cn .menu2.n .menu2.cz .menu2.z .menu2.reset .menu2.quit
+grid .menu2
+frame .reg
+listbox .reg.reg -width 52 -height 7 -yscroll {.reg.scrollreg set} -font "Courier 12"
+scrollbar .reg.scrollreg -command {.reg.reg yview}
+grid .reg.reg .reg.scrollreg -sticky ns
+grid .reg
+frame .mem
+listbox .mem.mem -width 52 -height 14 -yscroll {.mem.scrollmem set} -font "Courier 12"
+scrollbar .mem.scrollmem -command {.mem.mem yview}
+grid .mem.mem .mem.scrollmem -sticky ns
+grid .mem
+scan $argv "%s" filename
+load
