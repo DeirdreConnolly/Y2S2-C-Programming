@@ -1,0 +1,2 @@
+C:\PROGRA~1\MINGW-~1\X86_64~1.0-P\mingw64\bin\ar.exe qc libLab01.a  CMakeFiles/Lab01.dir/library.c.obj CMakeFiles/Lab01.dir/names.c.obj CMakeFiles/Lab01.dir/LectureSample_1.c.obj
+C:\PROGRA~1\MINGW-~1\X86_64~1.0-P\mingw64\bin\ranlib.exe libLab01.a
